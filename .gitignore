@@ -1,0 +1,26 @@
+# Data
+/data/raw/
+/data/processed/
+/data/cache/
+
+# Models & indexes
+/models/base/
+/models/trained/
+/faiss/
+
+# Logs
+/logs/
+/logs/*
+/notebooks/.ipynb_checkpoints/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+.env
+.venv
+*.egg-info/
+    
