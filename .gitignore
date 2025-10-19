@@ -1,15 +1,18 @@
-# Data
-/data/raw/
+# Data — keep only Parquet and CSV files
+/data/raw/*
+!/data/raw/*.parquet
+!/data/raw/*.csv
+
 /data/processed/
 /data/cache/
 
-# Models & indexes
-/models/base/
+# Models & indexes (still excluded)
+#/models/base/
 /models/trained/
 /faiss/
 
-# Logs
-/logs/
+# Logs (excluded)
+#/logs/
 /logs/*
 /notebooks/.ipynb_checkpoints/
 
@@ -23,4 +26,3 @@ __pycache__/
 .env
 .venv
 *.egg-info/
-    
