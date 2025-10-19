@@ -1,4 +1,4 @@
-# 🧭 Alias–Label Retriever  
+# 🧭 edu-alias-mapper-e5
 **Semantic Mapping of Institution Aliases → Canonical Names Using Sentence Transformers + FAISS**
 
 ![Python](https://img.shields.io/badge/python-3.11-blue.svg)
