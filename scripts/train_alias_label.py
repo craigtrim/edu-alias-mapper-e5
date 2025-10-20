@@ -12,6 +12,7 @@ import faiss
 import torch
 import pandas as pd
 from torch.utils.data import DataLoader
+from pathlib import Path
 from sentence_transformers import SentenceTransformer, InputExample, losses
 import logging
 

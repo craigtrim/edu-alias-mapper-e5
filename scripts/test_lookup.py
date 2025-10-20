@@ -15,6 +15,7 @@ import faiss
 import argparse
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from sentence_transformers import SentenceTransformer
 import logging
 from gpu_check import verify_gpu
