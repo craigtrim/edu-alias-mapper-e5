@@ -3,25 +3,30 @@
 
 """
 gpu_check.py
-Verifies CUDA GPU availability and VRAM capacity on Sparx.
+Verifies CUDA GPU availability and VRAM capacity (portable version).
 Logs detailed diagnostics with emojis and raises EnvironmentError if unmet.
 """
 
 import torch
 import logging
 import datetime
+from pathlib import Path
 
 # ---------------------------------------------------------------------
-# Configure logging
+# Configure logging (portable)
 # ---------------------------------------------------------------------
-LOG_PATH = "/home/craigtrim/projects/alias-label-retriever/logs/gpu_check.log"
+BASE_DIR = Path(__file__).resolve().parent.parent  # project root
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_PATH = LOG_DIR / "gpu_check.log"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
         logging.FileHandler(LOG_PATH, mode="a", encoding="utf-8"),
-        logging.StreamHandler()
+        logging.StreamHandler(),
     ],
 )
 logger = logging.getLogger("gpu_check")
@@ -70,6 +75,7 @@ def verify_gpu(min_vram_gb: int = 10) -> str:
 
     logger.info("🎯 GPU environment verified successfully ✅")
     logger.info(f"🕒 Verification complete at {datetime.datetime.now().isoformat()}")
+    logger.info(f"🗂 Log written to {LOG_PATH}")
     return "cuda"
 
 
