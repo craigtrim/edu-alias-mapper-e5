@@ -46,7 +46,7 @@ Built and trained on a **DGX (Sparx)** node, the system delivers lightning-fast 
 ## ⚙️ Setup
 ### 1️⃣ Clone the repo
 ```bash
-git clone https://github.com/<your-username>/alias-label-retriever.git
+git clone https://github.com/craigtrim/edu-alias-mapper-e5
 cd alias-label-retriever
 ```
 
