@@ -27,3 +27,4 @@ __pycache__/
 .venv
 *.egg-info/
 config.sh
+.DS_Store
