@@ -22,7 +22,7 @@ from gpu_check import verify_gpu
 # ---------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------
-BASE_DIR = "/home/craigtrim/projects/alias-label-retriever"
+BASE_DIR = Path(__file__).resolve().parent.parent  # project root
 MODEL_PATH = f"{BASE_DIR}/models/trained/alias_label_e5"
 FAISS_LABELS_PATH = f"{BASE_DIR}/faiss/labels.index"
 FAISS_ALIASES_PATH = f"{BASE_DIR}/faiss/aliases.index"

@@ -20,7 +20,8 @@ from gpu_check import verify_gpu
 # ---------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------
-BASE_DIR = "/home/craigtrim/projects/alias-label-retriever"
+BASE_DIR = Path(__file__).resolve().parent.parent  # project root
+LOG_DIR = BASE_DIR / "logs"
 RAW_PARQUET = f"{BASE_DIR}/data/raw/dbpedia_schools.parquet"
 MODEL_NAME = "intfloat/e5-large-v2"
 MODEL_SAVE_PATH = f"{BASE_DIR}/models/trained/alias_label_e5"
