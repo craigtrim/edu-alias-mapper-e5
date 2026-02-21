@@ -70,17 +70,3 @@ Example output:
 
 - [docs/architecture.md](docs/architecture.md) -- project structure, model configs, FAISS indexing, training flow, query flow, dataset schema
 - [docs/distillation.md](docs/distillation.md) -- distillation approach, experiment history, quality gates, Lambda cold-start profile
-
----
-
-## Author
-
-**Craig Trim**
-AI / Data Engineering -- Maryville University
-Built and trained on local DGX (**Sparx**)
-
----
-
-## License
-
-MIT License -- feel free to fork, modify, and extend.
