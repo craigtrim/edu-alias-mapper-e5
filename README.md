@@ -24,11 +24,20 @@ Built and trained on a **DGX (Sparx)** node, the system delivers lightning-fast 
 │
 ├── models/
 │ ├── base/ # Pretrained weights (e.g., intfloat/e5-large-v2)
-│ └── trained/ # Fine-tuned SentenceTransformer checkpoints
+│ └── trained/
+│     ├── alias_label_e5/           # Fine-tuned teacher (e5-large-v2, 1024-dim)
+│     └── alias_label_e5_distilled/ # Distilled student (e5-base-v2, 768-dim)
 │
 ├── faiss/ # Vector indexes for alias/label retrieval
-│ ├── labels.index
-│ └── aliases.index
+│ ├── labels.index             # Teacher label index (1024-dim)
+│ ├── aliases.index            # Teacher alias index (1024-dim)
+│ ├── labels_distilled.index   # Student label index (768-dim)
+│ └── aliases_distilled.index  # Student alias index (768-dim)
+│
+├── data/
+│ └── cache/                   # Cached teacher embeddings (reused across distillation runs)
+│     ├── teacher_alias_embs.npy
+│     └── teacher_label_embs.npy
 │
 ├── logs/ # Training and lookup logs
 │ └── metrics/ # Epoch-level performance data
@@ -36,6 +45,8 @@ Built and trained on a **DGX (Sparx)** node, the system delivers lightning-fast 
 ├── scripts/ # Executable Python modules
 │ ├── gpu_check.py
 │ ├── train_alias_label.py
+│ ├── distill_model.py
+│ ├── evaluate_student.py
 │ └── test_lookup.py
 │
 └── notebooks/ # Optional Jupyter exploration
@@ -96,6 +107,45 @@ Example output:
 ```
 
 
+### 🗜️ Distilled Model (Lambda Deployment)
+
+The teacher model (`e5-large-v2`, 1.3 GB) is too large for AWS Lambda cold-start. A distilled student (`e5-base-v2`, 418 MB) is produced via knowledge distillation and passes all quality gates.
+
+See [GitHub Issue #4](https://github.com/craigtrim/edu-alias-mapper-e5/issues/4) for full experiment history, metrics, and retrospective.
+
+**Run distillation** (requires teacher model to exist first):
+```bash
+conda run -n alias-label-retriever python scripts/distill_model.py
+```
+
+Outputs:
+- `models/trained/alias_label_e5_distilled/` -- student weights (418 MB, e5-base-v2)
+- `faiss/labels_distilled.index` -- FAISS label index at 768-dim (60 MB)
+- `faiss/aliases_distilled.index` -- FAISS alias index at 768-dim
+
+**Evaluate distilled model:**
+```bash
+conda run -n alias-label-retriever python scripts/evaluate_student.py --distilled --sample 2000
+```
+
+Quality gates (Attempt 6 results):
+
+| Gate | Threshold | Result |
+|------|-----------|--------|
+| Accuracy gap | student >= teacher - 5pp (>=51.05%) | 51.80% PASS |
+| Agreement | >=75% | 75.90% PASS |
+
+**Cold-start profile (CPU / Lambda):**
+
+| Component | Time |
+|-----------|------|
+| Model load | 0.06s |
+| FAISS index load | 0.02s |
+| First query | ~3.10s |
+| Total | ~3.2s |
+
+---
+
 ### 🧮 GPU Verification
 Before training, confirm CUDA readiness:
 ```bash
@@ -133,13 +183,25 @@ Example log:
 ---
 
 ## 📊 Performance Snapshot
+
+### Teacher (e5-large-v2)
 | Metric | Value |
 |--------|--------|
-| Epochs | 3 |
-| Runtime | ~6.8 min |
-| Throughput | 160 samples/sec |
-| Final Loss | **0.388** |
+| Model size | 1.3 GB |
+| Embedding dim | 1024 |
+| Top-1 accuracy | 56.05% (20,272-way retrieval) |
 | GPU | NVIDIA GB10 (119 GB) |
+
+### Distilled Student (e5-base-v2)
+| Metric | Value |
+|--------|--------|
+| Model size | 418 MB |
+| Embedding dim | 768 |
+| Top-1 accuracy | 51.80% |
+| Teacher-student agreement | 75.90% |
+| CPU cold-start (Lambda) | ~3.2s total |
+| Gate A (accuracy gap <=5pp) | PASS |
+| Gate B (agreement >=75%) | PASS |
 
 ---
 
@@ -167,56 +229,86 @@ MIT License — feel free to fork, modify, and extend.
 | Step | Command |
 |------|----------|
 | 🧩 Verify GPU | `python scripts/gpu_check.py` |
-| 🧠 Train Model | `python scripts/train_alias_label.py` |
-| 🔍 Query Index | `python scripts/test_lookup.py --query "UdeG"` |
+| 🧠 Train teacher | `python scripts/train_alias_label.py` |
+| 🗜️ Distill student | `conda run -n alias-label-retriever python scripts/distill_model.py` |
+| ✅ Evaluate student | `conda run -n alias-label-retriever python scripts/evaluate_student.py --distilled --sample 2000` |
+| 🔍 Query index | `python scripts/test_lookup.py --query "UdeG"` |
 | 🧮 Monitor GPU | `watch -n 1 nvidia-smi` |
+
+## 🤔 Which Model to Use
+
+| Scenario | Model | Why |
+|----------|-------|-----|
+| Local / GPU inference | Teacher (`alias_label_e5`) | Highest accuracy (56.05%), no size constraint |
+| AWS Lambda / CPU | Distilled student (`alias_label_e5_distilled`) | 418 MB, 3.2s cold-start, passes quality gates |
 
 ## ⚙️ Technical Deep Dive
 
 ### 🧠 Model and Embedding Configuration
-- **Base Model:** `intfloat/e5-large-v2` (Sentence Transformers)
-- **Embedding Dimension:** 1024  
-- **Fine-tuning Objective:** `MultipleNegativesRankingLoss`
-- **Training Duration:** ~6.8 minutes (3 epochs)
-- **Final Loss:** 0.3884  
-- **Batch Size:** 64  
-- **Framework:** PyTorch 2.3.0 + CUDA  
-- **Precision:** Mixed-precision (AMP enabled)  
-- **Device:** NVIDIA GB10 (119 GB VRAM)
 
-This setup uses bi-encoder embeddings—alias and label strings are independently encoded into the same vector space, allowing cosine similarity to rank candidate matches. The `MultipleNegativesRankingLoss` encourages the model to bring correct alias–label pairs closer together and push unrelated pairs apart.
+**Teacher (`intfloat/e5-large-v2`)**
+- **Embedding Dimension:** 1024
+- **Fine-tuning Objective:** `MultipleNegativesRankingLoss`
+- **Batch Size:** 64
+- **Framework:** PyTorch + CUDA, mixed-precision (AMP)
+- **Device:** NVIDIA GB10 (119 GB VRAM)
+- **Top-1 Accuracy:** 56.05% on 20,272-way retrieval
+
+The teacher uses bi-encoder embeddings -- alias and label strings are independently encoded into the same vector space, allowing cosine similarity to rank candidate matches. `MultipleNegativesRankingLoss` brings correct alias-label pairs closer together and pushes unrelated pairs apart.
+
+**Distilled Student (`intfloat/e5-base-v2`)**
+- **Embedding Dimension:** 768
+- **Distillation Objective:** Pair-level `CosineSimilarityLoss` with hard negatives
+- **Training Signal:** For each (alias, label) pair, the student minimizes `MSE(cosine(student(alias), student(label)), cosine(teacher(alias), teacher(label)))`. Hard negatives are the teacher's top-k non-gold labels per alias, mined via full similarity matrix multiply.
+- **Epochs:** 10
+- **Top-1 Accuracy:** 51.80% | Teacher-student agreement: 75.90%
+
+See [GitHub Issue #4](https://github.com/craigtrim/edu-alias-mapper-e5/issues/4) for full distillation experiment history.
 
 ---
 
 ### ⚙️ FAISS Indexing
-Two independent FAISS indexes are generated post-training:
+Each model has its own pair of FAISS indexes built from its respective embeddings:
 
-| Index | Purpose | File Path |
-|--------|----------|-----------|
-| `labels.index` | Enables alias → label lookup | `/faiss/labels.index` |
-| `aliases.index` | Enables label → alias lookup | `/faiss/aliases.index` |
+| Index | Model | Dim | Purpose |
+|-------|-------|-----|---------|
+| `faiss/labels.index` | Teacher | 1024 | Alias → label lookup |
+| `faiss/aliases.index` | Teacher | 1024 | Label → alias lookup |
+| `faiss/labels_distilled.index` | Student | 768 | Alias → label lookup (Lambda) |
+| `faiss/aliases_distilled.index` | Student | 768 | Label → alias lookup (Lambda) |
 
-Both use `IndexFlatIP` (inner-product similarity), which is equivalent to cosine similarity for normalized embeddings.  
-Each index is fully memory-resident for sub-millisecond retrieval on GPU or CPU.
+All indexes use `IndexFlatIP` (inner-product similarity), equivalent to cosine similarity for normalized embeddings. Fully memory-resident for fast retrieval on GPU or CPU.
 
 ---
 
 ### 🔩 Training Flow Overview
-1. **Load dataset** from Parquet → Pandas (`data/raw/dbpedia_schools.parquet`)  
-2. **Construct alias↔label pairs**  
-3. **Initialize** pretrained E5 model  
-4. **Fine-tune** for 3 epochs using `MultipleNegativesRankingLoss`  
-5. **Persist** fine-tuned model → `models/trained/alias_label_e5/`  
-6. **Encode** all aliases + labels → dense embeddings  
-7. **Write** FAISS indexes for instant semantic search  
+
+**Teacher (`train_alias_label.py`)**
+1. Load dataset from Parquet (`data/raw/dbpedia_schools.parquet`)
+2. Construct alias-label pairs
+3. Initialize pretrained `e5-large-v2`
+4. Fine-tune using `MultipleNegativesRankingLoss`
+5. Save model → `models/trained/alias_label_e5/`
+6. Encode all aliases + labels → 1024-dim embeddings
+7. Write FAISS indexes (`labels.index`, `aliases.index`)
+
+**Distilled Student (`distill_model.py`)**
+1. Load teacher and encode all aliases + labels → cached embeddings (`data/cache/`)
+2. Compute full alias-to-label similarity matrix via matrix multiply
+3. Mine hard negatives: teacher's top-k non-gold labels per alias
+4. Build pair-level training examples with teacher cosine similarities as scalar targets
+5. Train `e5-base-v2` student using `CosineSimilarityLoss` for 10 epochs
+6. Save student → `models/trained/alias_label_e5_distilled/`
+7. Encode all aliases + labels with student → 768-dim embeddings
+8. Write FAISS indexes (`labels_distilled.index`, `aliases_distilled.index`)
 
 ---
 
 ### 🧮 Query Flow
-1. User enters query (alias or label).  
-2. Model encodes query → 1024-D embedding.  
-3. FAISS performs nearest-neighbor search in the relevant index.  
-4. Returns ranked candidates with cosine similarity scores.  
+1. User enters query (alias or label).
+2. Model encodes query → embedding (1024-dim teacher, 768-dim student).
+3. FAISS performs nearest-neighbor search in the relevant index.
+4. Returns ranked candidates with cosine similarity scores.
 
 Example:
 ```
@@ -248,10 +340,17 @@ Top-1 Match: "University of Guadalajara" (0.9761)
 ---
 
 ### 🛡️ Reproducibility
-To reproduce identical results:
+To reproduce teacher training:
 ```bash
 python scripts/gpu_check.py
 python scripts/train_alias_label.py
 python scripts/test_lookup.py --query "UdeG"
 ```
-Model artifacts, logs, and indexes are version-controlled under their respective folders to ensure deterministic behavior across reruns.
+
+To reproduce distillation:
+```bash
+conda run -n alias-label-retriever python scripts/distill_model.py
+conda run -n alias-label-retriever python scripts/evaluate_student.py --distilled --sample 2000
+```
+
+Teacher embedding caches (`data/cache/`) are reused across distillation runs. Delete them to force re-encoding from scratch.

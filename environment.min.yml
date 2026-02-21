@@ -1,0 +1,35 @@
+name: alias-label-retriever
+channels:
+  - rapidsai
+  - conda-forge
+  - defaults
+dependencies:
+  # --- Core runtime ---
+  - python=3.11
+  - pip
+  - pytorch=2.7.1
+  - faiss-gpu=1.9.0
+  - libfaiss=1.9.0
+  - cudf
+  - cupy
+  - numpy<2
+  - pandas
+  - scikit-learn
+  - jupyterlab
+  - ipywidgets
+
+  # --- Optional RAPIDS helpers ---
+  - cugraph
+  - rmm
+
+  # --- Pip packages (lightweight layer) ---
+  - pip:
+      - transformers>=4.44.2
+      - sentence-transformers>=2.2.2
+      - accelerate>=1.10.0
+      - fastparquet
+      - datasets>=2.21.0
+      - sentencepiece
+      - tqdm
+      - regex
+      - safetensors

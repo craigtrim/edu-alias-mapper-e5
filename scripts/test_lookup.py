@@ -24,11 +24,25 @@ from gpu_check import verify_gpu
 # Paths
 # ---------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent  # project root
-MODEL_PATH = f"{BASE_DIR}/models/trained/alias_label_e5"
-FAISS_LABELS_PATH = f"{BASE_DIR}/faiss/labels.index"
-FAISS_ALIASES_PATH = f"{BASE_DIR}/faiss/aliases.index"
 RAW_PARQUET = f"{BASE_DIR}/data/raw/dbpedia_schools.parquet"
 LOG_FILE = f"{BASE_DIR}/logs/test_lookup.log"
+
+# Large model paths (e5-large-v2, 1024-dim) — default
+MODEL_PATH_LARGE = f"{BASE_DIR}/models/trained/alias_label_e5"
+FAISS_LABELS_PATH_LARGE = f"{BASE_DIR}/faiss/labels.index"
+FAISS_ALIASES_PATH_LARGE = f"{BASE_DIR}/faiss/aliases.index"
+
+# Small model paths (e5-small-v2, 384-dim) — selected via --small flag
+# Produced by scripts/train_small_model.py
+MODEL_PATH_SMALL = f"{BASE_DIR}/models/trained/alias_label_e5_small"
+FAISS_LABELS_PATH_SMALL = f"{BASE_DIR}/faiss/labels_small.index"
+FAISS_ALIASES_PATH_SMALL = f"{BASE_DIR}/faiss/aliases_small.index"
+
+# Distilled model paths (e5-small-v2, 384-dim) — selected via --distilled flag
+# Produced by scripts/distill_model.py
+MODEL_PATH_DISTILLED = f"{BASE_DIR}/models/trained/alias_label_e5_distilled"
+FAISS_LABELS_PATH_DISTILLED = f"{BASE_DIR}/faiss/labels_distilled.index"
+FAISS_ALIASES_PATH_DISTILLED = f"{BASE_DIR}/faiss/aliases_distilled.index"
 
 # ---------------------------------------------------------------------
 # Logging   
@@ -78,7 +92,38 @@ def main():
         help="Search direction",
     )
     parser.add_argument("--top", type=int, default=5, help="Number of results to show")
+    parser.add_argument(
+        "--small",
+        action="store_true",
+        default=False,
+        help="Use the directly fine-tuned e5-small-v2 model (384-dim). "
+             "Requires train_small_model.py to have been run first.",
+    )
+    parser.add_argument(
+        "--distilled",
+        action="store_true",
+        default=False,
+        help="Use the distilled e5-small-v2 model (384-dim). "
+             "Requires distill_model.py to have been run first.",
+    )
     args = parser.parse_args()
+
+    # Select model and index paths
+    if args.distilled:
+        MODEL_PATH = MODEL_PATH_DISTILLED
+        FAISS_LABELS_PATH = FAISS_LABELS_PATH_DISTILLED
+        FAISS_ALIASES_PATH = FAISS_ALIASES_PATH_DISTILLED
+        logger.info("Using distilled model (e5-small-v2, 384-dim)")
+    elif args.small:
+        MODEL_PATH = MODEL_PATH_SMALL
+        FAISS_LABELS_PATH = FAISS_LABELS_PATH_SMALL
+        FAISS_ALIASES_PATH = FAISS_ALIASES_PATH_SMALL
+        logger.info("Using small model (e5-small-v2, 384-dim)")
+    else:
+        MODEL_PATH = MODEL_PATH_LARGE
+        FAISS_LABELS_PATH = FAISS_LABELS_PATH_LARGE
+        FAISS_ALIASES_PATH = FAISS_ALIASES_PATH_LARGE
+        logger.info("Using large model (e5-large-v2, 1024-dim)")
 
     # -------------------------------------------------------------
     # Verify GPU

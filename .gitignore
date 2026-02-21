@@ -5,6 +5,7 @@
 
 /data/processed/
 /data/cache/
+/data/temp/
 
 # Models & indexes (still excluded)
 #/models/base/
@@ -14,7 +15,8 @@
 # Logs (excluded)
 #/logs/
 /logs/*
-/notebooks/.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+/checkpoints/
 
 # Python cache
 __pycache__/
@@ -28,3 +30,8 @@ __pycache__/
 *.egg-info/
 config.sh
 .DS_Store
+gh-token
+.claude
+start-jupyter.sh
+Analyze Courses.ipynb
+logs/
